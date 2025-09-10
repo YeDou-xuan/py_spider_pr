@@ -4,6 +4,11 @@ import pymysql
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import random
+import numpy  as np
+import pandas as pd
+from sqlalchemy import create_engine , text
+from urllib.parse import quote_plus
+
 """爬取内容为当日（实时）企业基金数据"""
 dit = {"referer": "https://www.dayfund.cn/incrank.html"
   ,
@@ -12,119 +17,103 @@ dit = {"referer": "https://www.dayfund.cn/incrank.html"
 proxies = {
   None
 }
-
 #用以暂时存储读取数据
 df_list = []
+#用以记录清洗后的数据
+df_list_pd=pd.DataFrame()
+
+headers = ['序号', '基金代码', '基金名称', '日增长(%)', '近1周(%)', '近1月(%)', '近1季(%)', '近半年(%)', '今年来(%)', '近1年(%)',
+                   '近2年(%)','近3年(%)']
 
 def download_one_page(index, url):
-  try:
-      req = requests.get(url=url, headers=dit, timeout=(3, 10),verify=False)#timeout用以延长访问间隔
+   try:
+      req = requests.get(url=url, headers=dit, timeout=(3, 10),verify=True)#timeout用以延长访问间隔
       soup = BeautifulSoup(req.text, "html.parser")
       table = soup.find_all("tr", class_=["row1", "row2"])
-      header_row = soup.find('tr', class_='rowh')
 
-      if header_row:
-        headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]# 这步骤可要可不要
-      else:
-        headers = ['序号', '基金代码', '基金名称', '日增长', '近1周', '近1月', '近1季', '近半年', '今年来', '近1年',
-                   '近2年''近3年']  # 根据实际表格列数修改
+      # header_row = soup.find('tr', class_='rowh')
+      # if header_row:
+      #   headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]# 这步骤可要可不要
+      # else:
+
 
       for row in table:
         cells = row.find_all('td')
         row_data = [cell.get_text(strip=True) for cell in cells]
+
         # 如果表头存在且长度匹配，则将行数据与表头组合成字典
         if len(row_data) == len(headers):
           row_dict = dict(zip(headers, row_data))
           df_list.append(row_dict)
-        # 如果长度不匹配，可能是不需要的数据或表格结构变化
+          # 如果长度不匹配，可能是不需要的数据或表格结构变化
         else:
-           print(f"Row data length mismatch on page {index}: {row_data}")
+            print(f"Row data length mismatch on page {index}: {row_data}")
       print(f"第{index}页爬取完成")
-      #设置随机延时，如若频繁请求可能触发网站反爬机制
-      time.sleep(random.uniform(1, 3))
-  except Exception as en:
-          print(f"第{index}页爬取失败: {str(en)}")
+      time.sleep(random.uniform(1, 3))  # 设置随机延时，如若频繁请求可能触发网站反爬机制
 
-def save_to_mysql(data_list):
-    if not data_list:
+   except Exception as en:
+       print(f"第{index}页爬取失败: {str(en)}")
+
+
+
+def wash_data_pd(a):
+      list_pd = pd.DataFrame(a,columns = headers)
+      numeric_columns = headers[headers.index('日增长(%)'):]
+      for col in numeric_columns:
+              list_pd[col] = list_pd[col].replace('-', np.nan)
+              list_pd[col] = list_pd[col].str.replace('%', '', regex=False).astype(float)
+      return list_pd
+
+
+
+
+
+def save_to_mysql(data_list_pd):
+    if data_list_pd.empty:
         print("没有数据可保存，数据列表为空")
         return
-    conn = None
-    cursor = None
     try:
+        #这是因为我的密码中有“@”，需要进行编码
+        encoded_password = quote_plus('liu@423615')#将“@”编码为"%40"
         #连接到自建数据库
-        conn = pymysql.connect(
-            host='localhost',
-            port=3306,
-            user='root',
-            password='liu@423615',
-            autocommit=True,
-            charset = 'utf8mb4',
-            database = 'spider_database'
-        )
-        cursor = conn.cursor()
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS dayfund_spider_data (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        `序号` VARCHAR(10),
-                        `基金代码` VARCHAR(20),
-                        `基金名称` VARCHAR(100),
-                        `日增长` VARCHAR(20),
-                        `近1周` VARCHAR(20),
-                        `近1月` VARCHAR(20),
-                        `近1季` VARCHAR(20),
-                        `近半年` VARCHAR(20),
-                        `今年来` VARCHAR(20),
-                        `近1年` VARCHAR(20),
-                        `近2年` VARCHAR(20),
-                        `近3年` VARCHAR(20),
-                        `created_at`TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
-                                """
-        truncate_table_query = "TRUNCATE TABLE dayfund_spider_data"
+        engine = create_engine(f'mysql+pymysql://root:{encoded_password}@localhost:3306/spider_database')
+        with engine.connect() as conn:
+            #可以用ctrl+alt+L来解决缩进问题
+            create_table_query = text("""
+                                      CREATE TABLE IF NOT EXISTS dayfund_spider_data
+                                      (
+                                          id           INT AUTO_INCREMENT PRIMARY KEY,
+                                          `序号`       int NOT NULL,
+                                          `基金代码`   int,
+                                          `基金名称`   VARCHAR(100),
+                                          `日增长(%)`  float,
+                                          `近1周(%)`   float,
+                                          `近1月(%)`   float,
+                                          `近1季(%)`   float,
+                                          `近半年(%)`  float,
+                                          `今年来(%)`  float,
+                                          `近1年(%)`   float,
+                                          `近2年(%)`   float,
+                                          `近3年(%)`   float,
+                                          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                                      )
+                                      """)
 
-        cursor.execute(create_table_query)
-        cursor.execute(truncate_table_query)
-        insert_query = """
-                       INSERT INTO dayfund_spider_data (`序号`, `基金代码`, `基金名称`, `日增长`, `近1周`, `近1月`, `近1季`, `近半年`, `今年来`, `近1年`, `近2年`, `近3年`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                       """
+            conn.execute(create_table_query)
 
-        records_to_insert = []
-        for item in data_list:
-            record = (
-                item.get('序号', ''),
-                item.get('基金代码', ''),
-                item.get('基金名称', ''),
-                item.get('日增长', ''),
-                item.get('近1周', ''),
-                item.get('近1月', ''),
-                item.get('近1季', ''),
-                item.get('近半年', ''),
-                item.get('今年来', ''),
-                item.get('近1年', ''),
-                item.get('近2年', ''),
-                item.get('近3年', '')
-            )
-            records_to_insert.append(record)
-            if records_to_insert:  # 确保有数据可插入（为空则执行else）
-                cursor.executemany(insert_query, records_to_insert)
-                conn.commit()  # 提交事务
-                print(f"成功插入 {len(records_to_insert)} 条记录到spider_database数据库")
-            else:
-                print("准备插入的记录列表为空，跳过插入操作")
+        if not data_list_pd.empty:  # 确保有数据可插
+            data_list_pd.to_sql('dayfund_spider_data', con=engine, if_exists='replace', index=False)
+            conn.commit()  # 提交事务
+            print(f"成功插入 {len(data_list_pd)} 条记录到spider_database数据库")
+        else:
+            print("准备插入的记录列表为空，跳过插入操作")
+        engine.dispose()#记得需要手动关闭连接
+
 
     except pymysql.MySQLError as pe:
             print(f"数据库错误: {str(pe)}")
-            if conn:
-                conn.rollback()  # 发生错误时可及时回滚
     except Exception as ec:
-        print(f"保存数据出错: {str(ec)}")
-        if conn:
-            conn.rollback()
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+            print(f"保存数据出错: {str(ec)}")
 
 
 if __name__ == "__main__":
@@ -135,7 +124,7 @@ if __name__ == "__main__":
     # 使用线程池以提高运行效率，并确保所有线程完成
     with ThreadPoolExecutor(max_workers=2) as T:#此处max_workers为最大线程数
         # 提交所有任务并获取Future对象
-        futures = [T.submit(download_one_page, i, url) for i, url in enumerate(urls)]
+        futures = [T.submit(download_one_page, i, url) for i, url in enumerate(urls,start=1)]
 
         # 等待所有任务完成
         for future in as_completed(futures):
@@ -145,9 +134,11 @@ if __name__ == "__main__":
                 print(f"线程执行出错: {str(e)}")
 
     # 所有线程完成后再保存数据
-    print(f"所有页面爬取完成，共获取 {len(df_list)} 条数据，开始写入数据库...")
+    print(f"所有页面爬取完成，共获取 {len(df_list)} 条数据，开始清洗...")
+    df_list_pd=wash_data_pd(df_list)
+    print("清洗完成，开始写入数据库...")
     #传入读取数据并写入数据库
-    save_to_mysql(df_list)
+    save_to_mysql(df_list_pd)
 
 """后续用异步协程方法改写‘写入数据库函数部分’以提高写入效率"""
 """也可将全部函数框架用异步协程框架改写"""
