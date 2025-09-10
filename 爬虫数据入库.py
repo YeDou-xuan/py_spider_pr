@@ -9,11 +9,16 @@ import pandas as pd
 from sqlalchemy import create_engine , text
 from urllib.parse import quote_plus
 
-"""爬取内容为当日（实时）企业基金数据"""
+"""
+爬取内容为当日（实时）企业基金数据。
+以下是其url:https://www.dayfund.cn/dayvalue.html
+"""
+
+#这是请求头部分，起dic为名以防止和后续表头信息存储变量重名
 dit = {"referer": "https://www.dayfund.cn/incrank.html"
   ,
        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"}
-#没找到合适的ip代理
+#没找到合适的ip代理，有的话可以加上
 proxies = {
   None
 }
@@ -21,10 +26,10 @@ proxies = {
 df_list = []
 #用以记录清洗后的数据
 df_list_pd=pd.DataFrame()
-
+#后续要进行数据清洗，手动填写了表头内容，否则可直接使用39-41行代码
 headers = ['序号', '基金代码', '基金名称', '日增长(%)', '近1周(%)', '近1月(%)', '近1季(%)', '近半年(%)', '今年来(%)', '近1年(%)',
                    '近2年(%)','近3年(%)']
-
+#这是我的爬虫函数，用以爬取数据并储存
 def download_one_page(index, url):
    try:
       req = requests.get(url=url, headers=dit, timeout=(3, 10),verify=True)#timeout用以延长访问间隔
@@ -34,7 +39,6 @@ def download_one_page(index, url):
       # header_row = soup.find('tr', class_='rowh')
       # if header_row:
       #   headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]# 这步骤可要可不要
-      # else:
 
 
       for row in table:
@@ -55,7 +59,7 @@ def download_one_page(index, url):
        print(f"第{index}页爬取失败: {str(en)}")
 
 
-
+#显而易见，这是一个数据清洗函数，用以处理“-0.07%”样式的数字为浮点数
 def wash_data_pd(a):
       list_pd = pd.DataFrame(a,columns = headers)
       numeric_columns = headers[headers.index('日增长(%)'):]
@@ -65,9 +69,7 @@ def wash_data_pd(a):
       return list_pd
 
 
-
-
-
+#这是我的数据写入函数，用以将清洗后的数据写入数据库
 def save_to_mysql(data_list_pd):
     if data_list_pd.empty:
         print("没有数据可保存，数据列表为空")
@@ -100,10 +102,10 @@ def save_to_mysql(data_list_pd):
                                       """)
 
             conn.execute(create_table_query)
+            conn.commit()
 
-        if not data_list_pd.empty:  # 确保有数据可插
+        if not data_list_pd.empty:
             data_list_pd.to_sql('dayfund_spider_data', con=engine, if_exists='replace', index=False)
-            conn.commit()  # 提交事务
             print(f"成功插入 {len(data_list_pd)} 条记录到spider_database数据库")
         else:
             print("准备插入的记录列表为空，跳过插入操作")
@@ -117,7 +119,7 @@ def save_to_mysql(data_list_pd):
 
 
 if __name__ == "__main__":
-    # 这是爬取页面的范围，这个网页共有116页
+    # 这是想要爬取页面的范围，这个网页共有116页
     pages = range(1, 6)
     urls = [f"https://www.dayfund.cn/incrank_p{i}.html" for i in pages]
 
@@ -135,11 +137,13 @@ if __name__ == "__main__":
 
     # 所有线程完成后再保存数据
     print(f"所有页面爬取完成，共获取 {len(df_list)} 条数据，开始清洗...")
+
     df_list_pd=wash_data_pd(df_list)
     print("清洗完成，开始写入数据库...")
+
     #传入读取数据并写入数据库
     save_to_mysql(df_list_pd)
-
+    print("数据写入完成！！！")
 """后续用异步协程方法改写‘写入数据库函数部分’以提高写入效率"""
 """也可将全部函数框架用异步协程框架改写"""
 
