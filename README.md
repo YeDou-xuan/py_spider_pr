@@ -26,7 +26,7 @@
 pip install -r requirements.txt
 ```
 
-如缺少以下库，请在 `requirements.txt` 中加入并安装：
+如缺少以下库，请记得安装：
 ```
 requests
 beautifulsoup4
