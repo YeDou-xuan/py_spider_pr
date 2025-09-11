@@ -3,18 +3,27 @@ import mysql.connector
 from mysql.connector import Error
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QGridLayout,
-                             QLabel, QLineEdit, QTextEdit,
-                             QPushButton, QTableWidget, QTableWidgetItem,
-                             QMessageBox, QSplitter, QGroupBox, QComboBox,
+                             QLabel, QTextEdit,
+                             QTableWidget, QTableWidgetItem,
+                             QMessageBox, QSplitter, QGroupBox,
                              QTabWidget, QMenuBar, QMenu, QFileDialog,
                              QProgressBar, QStatusBar, QGraphicsDropShadowEffect,
-                             QStyle)
+                             QStyle, QLineEdit)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QRegularExpression
 from PyQt6.QtGui import QFont, QAction, QSyntaxHighlighter, QTextCharFormat, QColor, QPalette
 import pandas as pd
 import csv
 import os
 from datetime import datetime
+
+# 可选：Fluent 主题与组件支持（PyQt6-Fluent-Widgets）
+try:
+    from qfluentwidgets import setTheme, Theme, setThemeColor
+    from qfluentwidgets import PushButton as QPushButtonBase, LineEdit as LineEditBase, ComboBox as ComboBoxBase
+    FLUENT_AVAILABLE = True
+except Exception:
+    from PyQt6.QtWidgets import QPushButton as QPushButtonBase, QLineEdit as LineEditBase, QComboBox as ComboBoxBase
+    FLUENT_AVAILABLE = False
 
 
 class MySQLQueryTool(QMainWindow):
@@ -25,22 +34,26 @@ class MySQLQueryTool(QMainWindow):
         self.is_connected = False
         
         # 数据库连接参数
-        self.host_edit = QLineEdit("localhost")
-        self.user_edit = QLineEdit("root")
-        self.password_edit = QLineEdit("liu@423615")
-        self.dbname_edit = QLineEdit("spider_database")
+        self.host_edit = LineEditBase()
+        self.user_edit = LineEditBase()
+        self.password_edit = LineEditBase()
+        self.dbname_edit = LineEditBase()
+        self.host_edit.setText("localhost")
+        self.user_edit.setText("root")
+        self.password_edit.setText("liu@423615")
+        self.dbname_edit.setText("spider_database")
         
         # UI组件
         self.status_label = QLabel("未连接到数据库")
         self.result_table = QTableWidget()
         self.sql_edit = QTextEdit()
-        self.connect_btn = QPushButton("连接数据库")
-        self.execute_btn = QPushButton("执行查询")
-        self.clear_btn = QPushButton("清除")
+        self.connect_btn = QPushButtonBase("连接数据库")
+        self.execute_btn = QPushButtonBase("执行查询")
+        self.clear_btn = QPushButtonBase("清除")
         
         # 查询历史
         self.sql_history = []
-        self.history_combo = QComboBox()
+        self.history_combo = ComboBoxBase()
         
         # 初始化UI
         self.init_ui()
@@ -170,7 +183,7 @@ class MySQLQueryTool(QMainWindow):
         # 图标列（可选，将来可扩展）
         table_group_layout.addWidget(self.table_list)
         
-        refresh_tables_btn = QPushButton("刷新表列表")
+        refresh_tables_btn = QPushButtonBase("刷新表列表")
         refresh_tables_btn.clicked.connect(self.refresh_tables)
         refresh_tables_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
         table_group_layout.addWidget(refresh_tables_btn)
@@ -229,7 +242,7 @@ class MySQLQueryTool(QMainWindow):
         conn_layout.addWidget(self.dbname_edit, 1, 3)
 
         # 连接按钮 - 只在初始化时连接一次信号
-        self.connect_btn = QPushButton("连接数据库")
+        self.connect_btn = QPushButtonBase("连接数据库")
         # 正确的信号连接：控件.信号.connect(槽函数)
         self.connect_btn.clicked.connect(self.on_connect_button_clicked)
         self.connect_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogYesButton))
@@ -272,7 +285,7 @@ class MySQLQueryTool(QMainWindow):
         ]
         
         for name, sql in templates:
-            btn = QPushButton(name)
+            btn = QPushButtonBase(name)
             btn.clicked.connect(lambda checked, s=sql: self.insert_template(s))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogToParent))
@@ -310,17 +323,17 @@ class MySQLQueryTool(QMainWindow):
 
         # 按钮区域
         btn_layout = QHBoxLayout()
-        self.execute_btn = QPushButton("执行查询")
+        self.execute_btn = QPushButtonBase("执行查询")
         self.execute_btn.clicked.connect(self.on_execute_clicked)
         self.execute_btn.setEnabled(False)  # 初始禁用
         self.execute_btn.setDefault(True)
         self.execute_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
 
-        self.clear_btn = QPushButton("清除")
+        self.clear_btn = QPushButtonBase("清除")
         self.clear_btn.clicked.connect(self.sql_edit.clear)
         self.clear_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogResetButton))
 
-        save_query_btn = QPushButton("保存查询")
+        save_query_btn = QPushButtonBase("保存查询")
         save_query_btn.clicked.connect(self.save_query_to_history)
         save_query_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
 
@@ -350,15 +363,15 @@ class MySQLQueryTool(QMainWindow):
         result_btn_layout = QHBoxLayout()
         result_btn_layout.setSpacing(6)
         
-        export_csv_btn = QPushButton("导出CSV")
+        export_csv_btn = QPushButtonBase("导出CSV")
         export_csv_btn.clicked.connect(lambda: self.export_results('csv'))
         export_csv_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
         
-        export_excel_btn = QPushButton("导出Excel")
+        export_excel_btn = QPushButtonBase("导出Excel")
         export_excel_btn.clicked.connect(lambda: self.export_results('excel'))
         export_excel_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
         
-        copy_btn = QPushButton("复制结果")
+        copy_btn = QPushButtonBase("复制结果")
         copy_btn.clicked.connect(self.copy_results)
         copy_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogYesButton))
         
@@ -400,7 +413,11 @@ class MySQLQueryTool(QMainWindow):
         base_font = QFont("Microsoft YaHei", 10)
         self.setFont(base_font)
 
-        # 统一样式表（浅色现代风格）
+        # 如果启用 Fluent，则不再叠加自定义浅色 QSS，避免与 Fluent 冲突
+        if FLUENT_AVAILABLE:
+            return
+
+        # 否则应用原有浅色样式
         light_style = """
         QWidget { font-size: 10pt; }
         QMainWindow { background: #f7f9fc; }
@@ -425,7 +442,14 @@ class MySQLQueryTool(QMainWindow):
 
     def apply_dark_theme(self):
         """切换到深色主题（仅外观）"""
+        # 若启用 Fluent：设置 Fluent 深色与主色，但仍需对 Qt 原生控件应用深色调色板+QSS
         self.current_theme = 'dark'
+        if FLUENT_AVAILABLE:
+            try:
+                setTheme(Theme.DARK)
+                setThemeColor(QColor("#0B5CAD"))
+            except Exception:
+                pass
         dark_palette = QPalette()
         dark_palette.setColor(QPalette.ColorRole.Window, QColor(30, 32, 35))
         dark_palette.setColor(QPalette.ColorRole.WindowText, QColor(220, 223, 228))
@@ -466,7 +490,15 @@ class MySQLQueryTool(QMainWindow):
     def apply_light_theme(self):
         """切换到浅色主题（仅外观）"""
         self.current_theme = 'light'
+        if FLUENT_AVAILABLE:
+            try:
+                setTheme(Theme.LIGHT)
+                setThemeColor(QColor("#0B5CAD"))
+            except Exception:
+                pass
+        # 恢复标准调色板并清除深色QSS，然后按原逻辑应用浅色样式
         QApplication.instance().setPalette(QApplication.instance().style().standardPalette())
+        self.setStyleSheet("")
         self.apply_app_styles()
 
     # 以下是所有槽函数，只作为被连接的目标，不主动调用connect/disconnect
@@ -1196,6 +1228,13 @@ if __name__ == "__main__":
     except Exception:
         pass
     app.setFont(QFont("Microsoft YaHei", 10))
+    # 启用 Fluent 深色金融配色（如可用）
+    if FLUENT_AVAILABLE:
+        try:
+            setTheme(Theme.DARK)
+            setThemeColor(QColor("#0B5CAD"))  # 金融蓝，可改为 #00C853 金融绿
+        except Exception:
+            pass
     window = MySQLQueryTool()
     window.show()
     sys.exit(app.exec())
