@@ -16,7 +16,6 @@
 ├─ 爬虫数据入库.py           # 采集、清洗、入库
 ├─ 数据库查询页面设计.py       # 桌面 GUI 查询工具
 ├─ requirements.txt          # 依赖列表
-├─ TEXT.py / TEXT.ui         # 示例 UI
 ├─ 数据库查询工具使用说明.md     # 使用说明（可选）
 └─ 字段名快速参考.md           # 字段参考（可选）
 ```
@@ -31,10 +30,9 @@ pip install -r requirements.txt
 ```
 requests
 beautifulsoup4
-lxml
 SQLAlchemy
 pymysql
-openpyxl
+...
 ```
 
 ### 数据库准备
