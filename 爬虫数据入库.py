@@ -86,7 +86,7 @@ def save_to_mysql(data_list_pd):
                                       (
                                           id           INT AUTO_INCREMENT PRIMARY KEY,
                                           `序号`       int NOT NULL,
-                                          `基金代码`   int,
+                                          `基金代码`   VARCHAR(20),
                                           `基金名称`   VARCHAR(100),
                                           `日增长(%)`  float,
                                           `近1周(%)`   float,
