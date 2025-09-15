@@ -47,9 +47,9 @@ class MySQLQueryTool(QMainWindow):
         self.status_label = QLabel("未连接到数据库")
         self.result_table = QTableWidget()
         self.sql_edit = QTextEdit()
-        self.connect_btn = QPushButtonBase("连接数据库")
-        self.execute_btn = QPushButtonBase("执行查询")
-        self.clear_btn = QPushButtonBase("清除")
+        self.connect_btn = None
+        self.execute_btn = None
+        self.clear_btn = None
         
         # 查询历史
         self.sql_history = []
@@ -153,6 +153,7 @@ class MySQLQueryTool(QMainWindow):
         query_layout.addWidget(splitter)
         
         parent.addTab(query_widget, "SQL查询")
+
 
     def create_table_management_tab(self, parent):
         """创建表管理标签页"""
@@ -538,13 +539,6 @@ class MySQLQueryTool(QMainWindow):
                 # 连接成功后刷新表列表
                 self.refresh_tables()
 
-            if self.connection and self.connection.is_connected():
-                cursor = self.connection.cursor()
-                cursor.execute("SELECT 1")  # 简单测试查询
-                result = cursor.fetchone()
-                cursor.close()
-                print("连接测试查询结果:", result)
-
         except Error as e:
             QMessageBox.critical(self, "连接失败", f"数据库连接失败:\n{str(e)}")
             self.status_label.setText("连接失败")
@@ -750,10 +744,8 @@ class MySQLQueryTool(QMainWindow):
         # 获取保存路径
         if format_type == 'csv':
             file_path, _ = QFileDialog.getSaveFileName(self, "保存CSV文件", f"query_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", "CSV文件 (*.csv)")
-            file_ext = '.csv'
         else:
             file_path, _ = QFileDialog.getSaveFileName(self, "保存Excel文件", f"query_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx", "Excel文件 (*.xlsx)")
-            file_ext = '.xlsx'
 
         if not file_path:
             return
@@ -880,344 +872,6 @@ class SQLHighlighter(QSyntaxHighlighter):
                 m = it.next()
                 self.setFormat(m.capturedStart(), m.capturedLength(), fmt)
 
-    # 以下是所有槽函数，只作为被连接的目标，不主动调用connect/disconnect
-    def on_connect_button_clicked(self):
-        """连接/断开按钮点击处理"""
-        if self.is_connected:
-            self.disconnect_database()
-        else:
-            self.connect_database()
-
-    def connect_database(self):
-        """连接到数据库"""
-        try:
-            # 显示连接进度
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 0)  # 不确定进度
-            self.status_bar.showMessage("正在连接数据库...")
-            
-            self.connection = mysql.connector.connect(
-                host=self.host_edit.text(),
-                user=self.user_edit.text(),
-                password=self.password_edit.text(),
-                database=self.dbname_edit.text(),
-                charset='utf8mb4',
-                autocommit=True
-            )
-
-            if self.connection.is_connected():
-                db_info = self.connection.server_info
-                QMessageBox.information(self, "连接成功", f"成功连接到MySQL {db_info}")
-                self.status_label.setText(f"已连接到: {self.host_edit.text()}/{self.dbname_edit.text()}")
-                self.status_bar.showMessage(f"已连接到数据库: {self.dbname_edit.text()}")
-                self.connect_btn.setText("断开连接")
-                self.execute_btn.setEnabled(True)
-                self.is_connected = True
-                
-                # 连接成功后刷新表列表
-                self.refresh_tables()
-
-            if self.connection and self.connection.is_connected():
-                cursor = self.connection.cursor()
-                cursor.execute("SELECT 1")  # 简单测试查询
-                result = cursor.fetchone()
-                cursor.close()
-                print("连接测试查询结果:", result)
-
-        except Error as e:
-            QMessageBox.critical(self, "连接失败", f"数据库连接失败:\n{str(e)}")
-            self.status_label.setText("连接失败")
-            self.status_bar.showMessage("连接失败")
-        finally:
-            self.progress_bar.setVisible(False)
-
-    def disconnect_database(self):
-        """断开数据库连接"""
-        if self.connection and self.connection.is_connected():
-            self.connection.close()
-            self.status_label.setText("已断开连接")
-            self.status_bar.showMessage("已断开数据库连接")
-            self.connect_btn.setText("连接数据库")
-            self.execute_btn.setEnabled(False)
-            self.is_connected = False
-            
-            # 清空表列表
-            self.table_list.setRowCount(0)
-            self.structure_table.setRowCount(0)
-            
-            QMessageBox.information(self, "断开成功", "已断开数据库连接")
-
-    def on_execute_clicked(self):
-        """执行查询按钮点击处理"""
-        sql = self.sql_edit.toPlainText().strip()
-        if not sql:
-            QMessageBox.warning(self, "警告", "请输入SQL语句")
-            return
-
-        if not self.connection or not self.connection.is_connected():
-            QMessageBox.warning(self, "警告", "请先连接数据库")
-            return
-
-        try:
-            # 显示执行进度
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 0)
-            self.status_bar.showMessage("正在执行查询...")
-            self.execute_btn.setEnabled(False)
-            
-            cursor = self.connection.cursor()
-            cursor.execute(sql)
-
-            # 处理查询结果
-            if sql.lower().startswith(('select', 'show', 'desc', 'describe', 'explain')):
-                records = cursor.fetchall()
-                columns = cursor.description
-
-                if columns:
-                    self.result_table.setColumnCount(len(columns))
-                    self.result_table.setHorizontalHeaderLabels([col[0] for col in columns])
-                    self.result_table.setRowCount(len(records))
-
-                    for row_idx, row_data in enumerate(records):
-                        for col_idx, col_data in enumerate(row_data):
-                            item = QTableWidgetItem(str(col_data) if col_data is not None else "")
-                            self.result_table.setItem(row_idx, col_idx, item)
-
-                    self.result_table.resizeColumnsToContents()
-                    self.status_label.setText(f"查询成功，返回 {len(records)} 条记录")
-                    self.status_bar.showMessage(f"查询完成，返回 {len(records)} 条记录")
-                else:
-                    self.result_table.setRowCount(0)
-                    self.result_table.setColumnCount(0)
-                    self.status_label.setText("查询成功，无结果")
-                    self.status_bar.showMessage("查询完成，无结果")
-            else:
-                self.connection.commit()
-                affected_rows = cursor.rowcount
-                self.status_label.setText(f"执行成功，影响 {affected_rows} 行")
-                self.status_bar.showMessage(f"执行完成，影响 {affected_rows} 行")
-                QMessageBox.information(self, "执行成功", f"影响 {affected_rows} 行")
-
-            cursor.close()
-            
-            # 保存查询到历史记录
-            if sql not in self.sql_history:
-                self.sql_history.append(sql)
-                self.history_combo.addItem(sql[:50] + "..." if len(sql) > 50 else sql)
-
-        except Error as e:
-            if self.connection:
-                self.connection.rollback()
-            QMessageBox.critical(self, "执行错误", f"SQL执行失败:\n{str(e)}")
-            self.status_label.setText("执行失败")
-            self.status_bar.showMessage("查询执行失败")
-        except Exception as e:
-            QMessageBox.critical(self, "未知错误", f"发生未知错误:\n{str(e)}")
-            self.status_label.setText("执行失败")
-            self.status_bar.showMessage("查询执行失败")
-        finally:
-            self.progress_bar.setVisible(False)
-            self.execute_btn.setEnabled(True)
-
-    def insert_template(self, sql_template):
-        """插入查询模板"""
-        self.sql_edit.setPlainText(sql_template)
-        self.sql_edit.setFocus()
-
-    def save_query_to_history(self):
-        """保存查询到历史记录"""
-        sql = self.sql_edit.toPlainText().strip()
-        if sql and sql not in self.sql_history:
-            self.sql_history.append(sql)
-            self.history_combo.addItem(sql[:50] + "..." if len(sql) > 50 else sql)
-            QMessageBox.information(self, "保存成功", "查询已保存到历史记录")
-
-    def load_history_query(self, query_text):
-        """加载历史查询"""
-        if query_text:
-            # 从历史记录中找到完整的SQL
-            for sql in self.sql_history:
-                if sql.startswith(query_text) or query_text in sql:
-                    self.sql_edit.setPlainText(sql)
-                    break
-
-    def clear_history(self):
-        """清除查询历史"""
-        self.sql_history.clear()
-        self.history_combo.clear()
-        QMessageBox.information(self, "清除完成", "查询历史已清除")
-
-    def refresh_tables(self):
-        """刷新表列表"""
-        if not self.connection or not self.connection.is_connected():
-            return
-
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute("SHOW TABLES")
-            tables = cursor.fetchall()
-            
-            self.table_list.setRowCount(len(tables))
-            
-            for i, (table_name,) in enumerate(tables):
-                # 表名
-                self.table_list.setItem(i, 0, QTableWidgetItem(table_name))
-                
-                # 记录数
-                try:
-                    cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
-                    count = cursor.fetchone()[0]
-                    self.table_list.setItem(i, 1, QTableWidgetItem(str(count)))
-                except:
-                    self.table_list.setItem(i, 1, QTableWidgetItem("未知"))
-                
-                # 创建时间
-                try:
-                    cursor.execute(f"SELECT CREATE_TIME FROM information_schema.TABLES WHERE TABLE_SCHEMA='{self.dbname_edit.text()}' AND TABLE_NAME='{table_name}'")
-                    create_time = cursor.fetchone()
-                    if create_time:
-                        self.table_list.setItem(i, 2, QTableWidgetItem(str(create_time[0])))
-                    else:
-                        self.table_list.setItem(i, 2, QTableWidgetItem("未知"))
-                except:
-                    self.table_list.setItem(i, 2, QTableWidgetItem("未知"))
-            
-            self.table_list.resizeColumnsToContents()
-            
-            # 连接表选择事件
-            self.table_list.itemSelectionChanged.connect(self.show_table_structure)
-            
-            cursor.close()
-            
-        except Error as e:
-            QMessageBox.critical(self, "错误", f"刷新表列表失败: {str(e)}")
-
-    def show_table_structure(self):
-        """显示表结构"""
-        current_row = self.table_list.currentRow()
-        if current_row < 0:
-            return
-            
-        table_name = self.table_list.item(current_row, 0).text()
-        
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute(f"DESCRIBE `{table_name}`")
-            columns = cursor.fetchall()
-            
-            self.structure_table.setRowCount(len(columns))
-            self.structure_table.setColumnCount(4)
-            
-            for i, (field, type_info, null, key, default, extra) in enumerate(columns):
-                self.structure_table.setItem(i, 0, QTableWidgetItem(field))
-                self.structure_table.setItem(i, 1, QTableWidgetItem(type_info))
-                self.structure_table.setItem(i, 2, QTableWidgetItem(null))
-                self.structure_table.setItem(i, 3, QTableWidgetItem(key))
-            
-            self.structure_table.resizeColumnsToContents()
-            cursor.close()
-            
-        except Error as e:
-            QMessageBox.critical(self, "错误", f"获取表结构失败: {str(e)}")
-
-    def export_results(self, format_type='csv'):
-        """导出查询结果"""
-        if self.result_table.rowCount() == 0:
-            QMessageBox.warning(self, "警告", "没有数据可导出")
-            return
-
-        # 获取保存路径
-        if format_type == 'csv':
-            file_path, _ = QFileDialog.getSaveFileName(self, "保存CSV文件", f"query_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", "CSV文件 (*.csv)")
-            file_ext = '.csv'
-        else:
-            file_path, _ = QFileDialog.getSaveFileName(self, "保存Excel文件", f"query_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx", "Excel文件 (*.xlsx)")
-            file_ext = '.xlsx'
-
-        if not file_path:
-            return
-
-        try:
-            # 准备数据
-            data = []
-            headers = []
-            
-            # 获取表头
-            for col in range(self.result_table.columnCount()):
-                headers.append(self.result_table.horizontalHeaderItem(col).text())
-            
-            # 获取数据
-            for row in range(self.result_table.rowCount()):
-                row_data = []
-                for col in range(self.result_table.columnCount()):
-                    item = self.result_table.item(row, col)
-                    row_data.append(item.text() if item else "")
-                data.append(row_data)
-            
-            # 创建DataFrame
-            df = pd.DataFrame(data, columns=headers)
-            
-            # 导出文件
-            if format_type == 'csv':
-                df.to_csv(file_path, index=False, encoding='utf-8-sig')
-            else:
-                df.to_excel(file_path, index=False, engine='openpyxl')
-            
-            QMessageBox.information(self, "导出成功", f"数据已导出到: {file_path}")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "导出失败", f"导出文件失败: {str(e)}")
-
-    def copy_results(self):
-        """复制结果到剪贴板"""
-        if self.result_table.rowCount() == 0:
-            QMessageBox.warning(self, "警告", "没有数据可复制")
-            return
-
-        try:
-            # 获取所有数据
-            data = []
-            headers = []
-            
-            # 获取表头
-            for col in range(self.result_table.columnCount()):
-                headers.append(self.result_table.horizontalHeaderItem(col).text())
-            
-            # 获取数据
-            for row in range(self.result_table.rowCount()):
-                row_data = []
-                for col in range(self.result_table.columnCount()):
-                    item = self.result_table.item(row, col)
-                    row_data.append(item.text() if item else "")
-                data.append(row_data)
-            
-            # 创建DataFrame并转换为CSV格式
-            df = pd.DataFrame(data, columns=headers)
-            csv_data = df.to_csv(index=False)
-            
-            # 复制到剪贴板
-            from PyQt6.QtWidgets import QApplication
-            clipboard = QApplication.clipboard()
-            clipboard.setText(csv_data)
-            
-            QMessageBox.information(self, "复制成功", "数据已复制到剪贴板")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "复制失败", f"复制数据失败: {str(e)}")
-
-    def show_about(self):
-        """显示关于对话框"""
-        QMessageBox.about(self, "关于", 
-                         "MySQL数据库查询工具 v2.0\n\n"
-                         "功能特点:\n"
-                         "• 支持MySQL数据库连接\n"
-                         "• 提供常用查询模板\n"
-                         "• 查询历史记录\n"
-                         "• 表结构查看\n"
-                         "• 结果导出(CSV/Excel)\n"
-                         "• 基金数据分析专用\n\n"
-                         "适用于基金数据爬虫项目")
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -1232,7 +886,7 @@ if __name__ == "__main__":
     if FLUENT_AVAILABLE:
         try:
             setTheme(Theme.DARK)
-            setThemeColor(QColor("#0B5CAD"))  # 金融蓝，可改为 #00C853 金融绿
+            setThemeColor(QColor("#00C853"))
         except Exception:
             pass
     window = MySQLQueryTool()
