@@ -3,7 +3,7 @@
   <component name="SqlDialectMappings">
     <file url="file://$PROJECT_DIR$/../PythonProject2/爬虫测试.py" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/数据库查询页面.py" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/数据库查询页面设计初步.py" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/数据库查询页面设计初步(这是第一版，不用看).py" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/爬虫数据入库.py" dialect="MySQL" />
   </component>
 </project>

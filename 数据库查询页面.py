@@ -136,7 +136,7 @@ class MySQLQueryTool(QMainWindow):
         help_menu.addAction(about_action)
 
     def create_status_bar(self):
-        """创建状态栏"""
+        #创建状态栏
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("就绪")
@@ -147,7 +147,7 @@ class MySQLQueryTool(QMainWindow):
         self.status_bar.addPermanentWidget(self.connection_status_indicator)
 
     def create_connection_group(self, parent_layout):
-        """创建数据库连接设置区域"""
+        #创建数据库连接设置区域
         conn_group = QGroupBox("数据库连接设置")
         conn_layout = QGridLayout(conn_group)
         conn_layout.setHorizontalSpacing(10)
@@ -191,7 +191,7 @@ class MySQLQueryTool(QMainWindow):
         parent_layout.addWidget(conn_group)
 
     def create_query_area(self, parent_layout):
-        """创建查询区域"""
+        #创建查询区域
         query_widget = QWidget()
         query_layout = QVBoxLayout(query_widget)
 
@@ -306,7 +306,7 @@ class MySQLQueryTool(QMainWindow):
         self.execute_query_btn.clicked.connect(lambda: self.execute_template_query("SELECT * FROM dayfund_spider_data LIMIT 100"))
 
     def apply_app_styles(self):
-        """应用统一样式"""
+        #应用统一样式
         if FLUENT_AVAILABLE:
             return
         self.setStyleSheet("""
@@ -322,7 +322,7 @@ class MySQLQueryTool(QMainWindow):
         """)
 
     def apply_dark_theme(self):
-        """切换到深色主题"""
+        #切换到深色主题
         self.current_theme = 'dark'
         if FLUENT_AVAILABLE:
             setTheme(Theme.DARK)
@@ -347,7 +347,7 @@ class MySQLQueryTool(QMainWindow):
         self._apply_shadow_effects()
 
     def apply_light_theme(self):
-        """应用浅色主题"""
+        #应用浅色主题
         self.current_theme = 'light'
         if FLUENT_AVAILABLE:
             setTheme(Theme.LIGHT)
@@ -372,7 +372,7 @@ class MySQLQueryTool(QMainWindow):
         self._apply_shadow_effects()
 
     def _apply_shadow_effects(self):
-        """统一应用阴影效果"""
+        #统一应用阴影效果
         if FLUENT_AVAILABLE:
             return
             
@@ -393,19 +393,19 @@ class MySQLQueryTool(QMainWindow):
     # 移除check_connection_status方法，采用被动式连接管理
 
     def reconnect_database(self):
-        """重新连接数据库"""
+        #重新连接数据库
         self.disconnect_database()
         self.connect_database()
 
     def on_connect_button_clicked(self):
-        """连接/断开按钮点击处理"""
+        #连接/断开按钮点击处理
         if self.is_connected:
             self.disconnect_database()
         else:
             self.connect_database()
 
     def connect_database(self):
-        """连接到数据库"""
+        #连接到数据库
         try:
             # 显示连接进度
             self.progress_bar.setVisible(True)
@@ -441,7 +441,7 @@ class MySQLQueryTool(QMainWindow):
 
 
     def disconnect_database(self):
-        """断开数据库连接"""
+        #断开数据库连接
         if self.connection and self.connection.is_connected():
             self.connection.close()
             self.status_label.setText("已断开连接")
@@ -456,7 +456,7 @@ class MySQLQueryTool(QMainWindow):
 
 
     def execute_template_query(self, sql_template):
-        """执行模板查询"""
+        #执行模板查询
         sql = sql_template
         if not sql:
             QMessageBox.warning(self, "警告", "请输入SQL语句")
@@ -555,7 +555,7 @@ class MySQLQueryTool(QMainWindow):
             self.progress_bar.setVisible(False)
 
     def export_results(self, format_type='csv'):
-        """导出查询结果"""
+        #导出查询结果
         if self.result_table.rowCount() == 0:
             QMessageBox.warning(self, "警告", "没有数据可导出")
             return
@@ -582,7 +582,7 @@ class MySQLQueryTool(QMainWindow):
             QMessageBox.critical(self, "失败", f"导出失败: {str(e)}")
 
     def copy_results(self):
-        """复制结果到剪贴板"""
+        #复制结果到剪贴板
         if self.result_table.rowCount() == 0:
             QMessageBox.warning(self, "警告", "没有数据可复制")
             return
@@ -601,13 +601,13 @@ class MySQLQueryTool(QMainWindow):
             QMessageBox.critical(self, "失败", f"复制失败: {str(e)}")
 
     def clear_results(self):
-        """清空结果表格"""
+        #清空结果表格
         self.result_table.setRowCount(0)
         self.result_table.setColumnCount(0)
         self.status_label.setText("结果已清空")
 
     def show_about(self):
-        """显示关于对话框"""
+        #显示关于对话框
         QMessageBox.about(self, "关于", "基金数据查询工具 v1.0\n\n基于PyQt6的MySQL数据库查询工具\n\n功能：数据库连接、SQL查询、数据导出")
 
 
@@ -617,7 +617,7 @@ class MySQLQueryTool(QMainWindow):
 
 
     def closeEvent(self, event):
-        """窗口关闭事件处理"""
+        #窗口关闭事件处理
         if QMessageBox.question(self, '确认退出', '确定要退出程序吗？') == QMessageBox.StandardButton.Yes:
             if self.connection:
                 self.connection.close()
